@@ -32,6 +32,7 @@ defmodule Electric.Application do
             shape_cache,
             {Electric.Replication.ShapeLogCollector,
              registry: Registry.ShapeChanges, shape_cache: shape_cache, inspector: inspector},
+            {Electric.TimelineCache, nil},
             {Electric.ConnectionManager,
              connection_opts: Application.fetch_env!(:electric, :connection_opts),
              replication_opts: [
@@ -45,6 +46,10 @@ defmodule Electric.Application do
                name: Electric.DbPool,
                pool_size: Application.fetch_env!(:electric, :db_pool_size),
                types: PgInterop.Postgrex.Types
+             ],
+             timeline_opts: [
+               shape_cache: {Electric.ShapeCache, []},
+               timeline_cache: Electric.TimelineCache
              ]},
             {Electric.Postgres.Inspector.EtsInspector, pool: Electric.DbPool},
             {Bandit,

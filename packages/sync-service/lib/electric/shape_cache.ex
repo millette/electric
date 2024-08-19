@@ -25,6 +25,7 @@ defmodule Electric.ShapeCacheBehaviour do
   @callback await_snapshot_start(GenServer.name(), shape_id()) :: :started | {:error, term()}
   @callback handle_truncate(GenServer.name(), shape_id()) :: :ok
   @callback clean_shape(GenServer.name(), shape_id()) :: :ok
+  @callback clean_all_shapes(GenServer.name()) :: :ok
 end
 
 defmodule Electric.ShapeCache do
@@ -131,6 +132,11 @@ defmodule Electric.ShapeCache do
     GenServer.call(server, {:clean, shape_id})
   end
 
+  @spec clean_all_shapes(GenServer.name()) :: :ok
+  def clean_all_shapes(server \\ __MODULE__) do
+    GenServer.call(server, {:clean_all})
+  end
+
   @spec handle_truncate(GenServer.name(), String.t()) :: :ok
   def handle_truncate(server \\ __MODULE__, shape_id) do
     GenServer.call(server, {:truncate, shape_id})
@@ -219,6 +225,12 @@ defmodule Electric.ShapeCache do
     {:reply, :ok, state}
   end
 
+  def handle_call({:clean_all}, _from, state) do
+    clean_up_all_shapes(state)
+    Logger.info("Cleaning up all shapes")
+    {:reply, :ok, state}
+  end
+
   def handle_cast({:snapshot_xmin_known, shape_id, xmin}, state) do
     if :ets.update_element(
          state.shape_meta_table,
@@ -279,6 +291,15 @@ defmodule Electric.ShapeCache do
 
     Task.start(fn -> Storage.cleanup!(shape_id, state.storage) end)
     shape
+  end
+
+  defp clean_up_all_shapes(state) do
+    shape_ids = list_active_shapes(state) |> Enum.map(&elem(&1, 0))
+    # FIXME: is there a better way to do this?
+    #        ideally we'd want an `:ets.select_delete` where the pattern matches any `shape_id` that is in the `shape_ids` list
+    for shape_id <- shape_ids do
+      clean_up_shape(state, shape_id)
+    end
   end
 
   defp maybe_start_snapshot(%{awaiting_snapshot_start: map} = state, shape_id, _)
